@@ -6,8 +6,23 @@
 <meta name="theme-color" content="#0F3D28">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="みちのわん">
 <meta name="description" content="愛犬と走る。泊まる。日本を巡る。全国1231駅の道の駅を犬と車中泊で制覇するライフログアプリ「みちのわん」">
 <title>みちのわん — 愛犬と車中泊の道の駅旅日誌</title>
+
+<!-- OGP / SNSシェア用メタタグ -->
+<meta property="og:title" content="みちのわん — 愛犬と車中泊の道の駅旅日誌">
+<meta property="og:description" content="愛犬と走る。泊まる。日本を巡る。全国1231駅の道の駅を犬と車中泊で制覇するライフログアプリ">
+<meta property="og:image" content="https://kawamura670.github.io/michinowan/icon-512.png">
+<meta property="og:url" content="https://kawamura670.github.io/michinowan/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kawamura670.github.io/michinowan/icon-512.png">
+
+<!-- セキュリティヘッダー（GitHub Pages用meta代替） -->
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://buy.stripe.com; font-src 'self'; frame-ancestors 'none';">
+
 <link rel="manifest" href="manifest.json">
 <script>
 if('serviceWorker' in navigator){
@@ -16,10 +31,11 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
+<link rel="icon" href="icon.ico" type="image/x-icon">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 
@@ -482,7 +498,7 @@ if('serviceWorker' in navigator){
           <tr><th>所在地</th><td>請求があった場合に遅滞なく開示いたします。<br>お問い合わせ先メールアドレスまでご連絡ください。</td></tr>
           <tr><th>電話番号</th><td>請求があった場合に遅滞なく開示いたします。<br>お問い合わせ先メールアドレスまでご連絡ください。</td></tr>
           <tr><th>メールアドレス</th><td>ana06155@icloud.com</td></tr>
-          <tr><th>販売価格</th><td>みちのわんマスター: 980円（税込・買い切り）</td></tr>
+          <tr><th>販売価格</th><td>みちのわんマスター: 980円（税込・買い切り）<br>※ 現在は無料版を提供中。有料機能は準備中です。</td></tr>
           <tr><th>販売価格以外の必要料金</th><td>インターネット接続に必要な通信料はお客様のご負担となります。</td></tr>
           <tr><th>支払方法</th><td>クレジットカード決済（Stripe経由）</td></tr>
           <tr><th>支払時期</th><td>購入時に一括でお支払いいただきます。</td></tr>
@@ -501,7 +517,7 @@ if('serviceWorker' in navigator){
         <h3>データ出典</h3>
         <ul>
           <li>道の駅データ: 国土交通省「道の駅一覧」に基づき作成</li>
-          <li>ドッグラン併設情報: 各道の駅の公式情報に基づき作成（41駅）</li>
+          <li>ドッグラン併設情報: 各道の駅の公式情報に基づき作成（33駅）</li>
           <li>緊急動物病院情報: 各動物病院の公式サイトに基づき作成（42件）</li>
         </ul>
         <h3>ご注意</h3>
@@ -553,6 +569,6 @@ if('serviceWorker' in navigator){
 <script src="map.js"></script>
 <script src="dogrun_stations.js"></script>
 <script src="emergency_vets.js"></script>
-<script src="app.js?v=23"></script>
+<script src="app.js?v=26"></script>
 </body>
 </html>

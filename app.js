@@ -206,11 +206,11 @@ const RING_CIRCUMFERENCE = 326.7;
 
 // ===== データ =====
 function loadManual() { try { return JSON.parse(localStorage.getItem(MANUAL_KEY)||"{}"); } catch { return {}; } }
-function saveManual(d) { localStorage.setItem(MANUAL_KEY, JSON.stringify(d)); }
+function saveManual(d) { try { localStorage.setItem(MANUAL_KEY, JSON.stringify(d)); } catch(e) { if(e.name==="QuotaExceededError"||e.code===22) alert("ストレージ容量が不足しています。バックアップ後、不要なデータを削除してください。"); } }
 function loadDismissed() { try { return JSON.parse(localStorage.getItem(DISMISS_KEY)||"[]"); } catch { return []; } }
-function saveDismissed(a) { localStorage.setItem(DISMISS_KEY, JSON.stringify(a)); }
+function saveDismissed(a) { try { localStorage.setItem(DISMISS_KEY, JSON.stringify(a)); } catch(e) { if(e.name==="QuotaExceededError"||e.code===22) alert("ストレージ容量が不足しています。バックアップをお勧めします。"); } }
 function loadSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}"); } catch { return {}; } }
-function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch(e) { if(e.name==="QuotaExceededError"||e.code===22) alert("ストレージ容量が不足しています。バックアップをお勧めします。"); } }
 
 function getVisitInfo(id) { const m=loadManual(); return m[id] || PROGRESS_DATA[id] || null; }
 function setVisited(id, visited, photo) {
@@ -511,6 +511,10 @@ function renderStampbook(stats){
       html+=stationHtml;
     }
   });
+  if(!html){
+    if(_sbFilter==="collected") html='<div class="empty-state">まだスタンプを獲得していません。<br>一覧から道の駅を訪問してスタンプを集めましょう！</div>';
+    else if(_sbFilter==="not") html='<div class="empty-state">すべてのスタンプを獲得済みです！<br>おめでとうございます！</div>';
+  }
   grid.innerHTML=html;
 
   grid.querySelectorAll(".sb-stamp").forEach(el=>{
@@ -779,10 +783,10 @@ function renderRVParkSection(){
         `<select id="rvpark-feature" class="ls-select"><option value="">設備で絞る</option><option value="ペットOK">ペットOK</option><option value="ドッグラン">ドッグラン</option><option value="温泉">温泉あり</option><option value="電源あり">電源あり</option></select>`+
         `<button id="rvpark-search-btn" class="ls-search-btn rvpark-btn">🔍 検索</button>`+
       `</div>`+
+      `<a href="https://www.kurumatabi.com/park/rvpark/" target="_blank" rel="noopener" class="rvpark-more-link">📋 RVパーク全一覧を見る（くるま旅クラブ） ↗</a>`+
       `<div id="rvpark-results" class="rvpark-results">`+
         rvParks.slice(0,5).map(rv=>renderRVParkItem(rv)).join("")+
       `</div>`+
-      `<a href="https://www.kurumatabi.com/park/rvpark/" target="_blank" rel="noopener" class="rvpark-more-link">📋 RVパーク全一覧を見る（くるま旅クラブ） ↗</a>`+
     `</div>`;
 
   document.getElementById("rvpark-search-btn").addEventListener("click",()=>{
@@ -838,6 +842,27 @@ function renderVetSection(){
         `</div>`+
         `<div class="vet-loading">データを読み込み中...</div>`+
       `</div>`;
+    let _vetRetry=0;
+    const _vetTimer=setInterval(()=>{
+      _vetRetry++;
+      if(typeof EMERGENCY_VETS!=="undefined"&&EMERGENCY_VETS.length>0){
+        clearInterval(_vetTimer);
+        renderVetSection();
+      } else if(_vetRetry>=10){
+        clearInterval(_vetTimer);
+        el.innerHTML=
+          `<div class="lifestyle-card vet-card">`+
+            `<div class="lifestyle-header">`+
+              `<span class="lifestyle-icon">🏥</span>`+
+              `<div class="lifestyle-header-text">`+
+                `<div class="lifestyle-title">緊急動物病院</div>`+
+                `<div class="lifestyle-subtitle">24時間・夜間対応の動物病院を検索</div>`+
+              `</div>`+
+            `</div>`+
+            `<div class="vet-loading">データの読み込みに失敗しました。ページを再読み込みしてください。</div>`+
+          `</div>`;
+      }
+    },500);
     return;
   }
   if(_vetInitialized) return;
@@ -1203,7 +1228,7 @@ function renderTimeline(s){
   MICHINOEKI_DATA.forEach(function(st){
     var info=manual[st.id];
     if(!info || !info.visited) return;
-    entries.push({id:st.id,name:st.name,pref:st.pref,date:info.date||"",photo:info.photo||null,memo:info.memo||""});
+    entries.push({id:st.id,name:st.name,pref:st.pref,date:info.date||"",photo:info.photo||null,memo:info.note||""});
   });
   entries.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
   if(entries.length===0){
@@ -1304,7 +1329,7 @@ function renderBadges(s){
 
 // ===== プレミアム =====
 function isPremium(){ return localStorage.getItem("michinoeki_premium")==="true"; }
-function setPremium(v){ localStorage.setItem("michinoeki_premium", v?"true":"false"); }
+function setPremium(v){ try { localStorage.setItem("michinoeki_premium", v?"true":"false"); } catch(e) {} }
 
 // --- ホーム画面訴求: ツァイガルニク効果 + 保有効果 ---
 function renderPremiumNudge(stats){
@@ -1456,7 +1481,7 @@ function handleStripeCheckout(){
   if(REVENUE_CONFIG.stripePaymentLink){
     window.location.href=REVENUE_CONFIG.stripePaymentLink;
   } else {
-    activatePremium();
+    alert("決済機能は現在準備中です。もうしばらくお待ちください。");
   }
 }
 
@@ -1880,7 +1905,11 @@ detailModal.addEventListener("click",e=>{
 });
 
 // ===== 検索・フィルター =====
-document.getElementById("search").addEventListener("input",render);
+let _searchTimer=null;
+document.getElementById("search").addEventListener("input",function(){
+  if(_searchTimer) clearTimeout(_searchTimer);
+  _searchTimer=setTimeout(function(){ renderList(calcStats()); },200);
+});
 document.querySelectorAll(".filter-chip").forEach(chip=>{
   chip.addEventListener("click",()=>{
     document.querySelectorAll(".filter-chip").forEach(c=>c.classList.remove("active"));
@@ -1904,7 +1933,7 @@ stampConfirm.addEventListener("click",()=>{if(stampSelectedId===null)return;cons
 document.getElementById("export-btn").addEventListener("click",()=>{const d={manual:loadManual(),dismissed:loadDismissed(),settings:loadSettings(),exportedAt:new Date().toISOString()};const b=new Blob([JSON.stringify(d)],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=`michinoeki_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(u);});
 const importFile=document.getElementById("import-file");
 document.getElementById("import-btn").addEventListener("click",()=>importFile.click());
-importFile.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.manual)saveManual(d.manual);if(d.dismissed)saveDismissed(d.dismissed);if(d.settings)saveSettings(d.settings);render();alert("バックアップを読み込みました！");}catch{alert("読み込みに失敗しました。");}};r.readAsText(f);importFile.value="";});
+importFile.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d||typeof d!=="object"){alert("無効なバックアップファイルです。");return;}if(d.manual&&typeof d.manual!=="object"){alert("バックアップデータの形式が不正です。");return;}if(d.manual)saveManual(d.manual);if(d.dismissed)saveDismissed(d.dismissed);if(d.settings)saveSettings(d.settings);render();alert("バックアップを読み込みました！");}catch{alert("読み込みに失敗しました。ファイルの形式を確認してください。");}};r.readAsText(f);importFile.value="";});
 
 // ===== 音声 =====
 const voiceModal=document.getElementById("voice-modal"),voiceStatus=document.getElementById("voice-status"),voiceRecognized=document.getElementById("voice-recognized"),voiceMatches=document.getElementById("voice-matches"),voiceDoneMsg=document.getElementById("voice-done-msg"),voiceMicBtn=document.getElementById("voice-mic");
@@ -2018,7 +2047,7 @@ document.getElementById("cert-share").addEventListener("click", function() {
   var cv = document.getElementById("cert-canvas");
   cv.toBlob(function(blob) {
     if (navigator.share && navigator.canShare) {
-      var file = new File([blob], "tabique_certificate.png", { type: "image/png" });
+      var file = new File([blob], "michinowan_certificate.png", { type: "image/png" });
       var shareData = { files: [file], title: "みちのわん 制覇証明書", text: "#みちのわん #犬と車中泊 #道の駅 #全国制覇" };
       if (navigator.canShare(shareData)) {
         navigator.share(shareData).catch(function() {});
@@ -2027,7 +2056,7 @@ document.getElementById("cert-share").addEventListener("click", function() {
     }
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "tabique_certificate.png";
+    a.download = "michinowan_certificate.png";
     a.click();
     URL.revokeObjectURL(a.href);
   }, "image/png");
@@ -2076,7 +2105,7 @@ function checkCertificateTriggers() {
   if (newCerts.length > 0) {
     var c = newCerts[0];
     earned.push(c.key);
-    localStorage.setItem("tabique_certs", JSON.stringify(earned));
+    try { localStorage.setItem("tabique_certs", JSON.stringify(earned)); } catch(e) {}
     setTimeout(function() { showCertificate(c.title, c.sub, c.count); }, 1200);
   }
 }

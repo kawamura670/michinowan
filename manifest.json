@@ -47,6 +47,13 @@
       "type": "image/png",
       "form_factor": "narrow",
       "label": "犬連れ旅情報 — ドッグラン・RVパーク・緊急動物病院"
+    },
+    {
+      "src": "store_assets/screenshot_04.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "全国制覇マップ — 都道府県別の訪問状況を確認"
     }
   ]
 }
