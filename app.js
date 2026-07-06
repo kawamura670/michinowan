@@ -1487,7 +1487,6 @@ function updatePremiumUI(){
   if(banner){
     if(premium){
       const s=calcStats();
-      const filledCount=Object.values(s.prefStats).filter(d=>d.visited>0).length;
       banner.innerHTML=
         `<div class="premium-banner">` +
           `<div class="premium-banner-icon">👑</div>` +
@@ -1496,7 +1495,7 @@ function updatePremiumUI(){
             `<div class="premium-banner-sub">全機能が解放されています</div>` +
           `</div>` +
           `<div class="premium-banner-stats">` +
-            `<div class="premium-banner-stat">${filledCount}<span>県</span></div>` +
+            `<div class="premium-banner-stat">${s.prefComplete}<span>県</span></div>` +
           `</div>` +
         `</div>`;
     } else {
