@@ -600,22 +600,18 @@ function renderDashSummary(s){
 function renderNextQuest(s){
   const el=document.getElementById("next-quest");
   if(!el) return;
-  const nextBadge=BADGES.find(b=>{
-    if(b.type==="pref") return !b.check(s.visited,s.total,s.prefComplete);
-    if(b.type==="photo") return !b.check(s.visited,s.total,s.prefComplete,s.photoCount);
-    return !b.check(s.visited,s.total);
-  });
-  if(!nextBadge){ el.innerHTML=`<div class="quest-complete">🎊 全クエスト達成！おめでとうございます！</div>`; return; }
-  const target=nextBadge.max||s.total;
-  const current=nextBadge.type==="pref"?s.prefComplete:nextBadge.type==="photo"?s.photoCount:s.visited;
-  const progPct=target>0?Math.min(100,Math.round((current/target)*100)):0;
-  const remaining=Math.max(0,target-current);
+  const nextQuest=QUESTS.find(q=>!getQuestStatus(q,s).done);
+  if(!nextQuest){ el.innerHTML=`<div class="quest-complete">🎊 全クエスト達成！おめでとうございます！</div>`; return; }
+  const st=getQuestStatus(nextQuest,s);
+  const progPct=st.max>0?Math.min(100,Math.round((st.cur/st.max)*100)):0;
+  const cur=Math.min(st.cur,st.max);
+  const remaining=Math.max(0,st.max-st.cur);
   el.innerHTML=
     `<div class="quest-header">次のクエスト</div>`+
-    `<div class="quest-name">${nextBadge.emoji} ${nextBadge.title}</div>`+
-    `<div class="quest-desc">${nextBadge.desc}</div>`+
+    `<div class="quest-name">🎯 ${nextQuest.name}</div>`+
+    `<div class="quest-desc">${nextQuest.desc}</div>`+
     `<div class="quest-progress-wrap"><div class="quest-progress-bar"><div class="quest-progress-fill" style="width:${progPct}%"></div></div>`+
-    `<div class="quest-progress-text">${current} / ${target}（あと${remaining}）</div></div>`;
+    `<div class="quest-progress-text">${cur} / ${st.max}（あと${remaining}）</div></div>`;
 }
 
 // ===== ダッシュボード: 達成済み称号 =====
@@ -778,21 +774,21 @@ function renderRVParkSection(){
   _rvInitialized=true;
 
   const rvParks=[
-    {name:"RVパーク 道の駅ならは",pref:"福島県",features:["電源あり","温泉隣接","ペットOK"],price:"2,000円〜/泊",tel:"0240-25-8571",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅川場田園プラザ",pref:"群馬県",features:["電源あり","トイレ24h","ペットOK"],price:"2,500円〜/泊",tel:"0278-52-3711",url:"https://www.denenplaza.co.jp/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅うつのみや ろまんちっく村",pref:"栃木県",features:["電源あり","温泉","ドッグラン"],price:"3,000円〜/泊",tel:"028-665-8800",url:"https://www.romanticmura.com/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅伊東マリンタウン",pref:"静岡県",features:["電源あり","温泉","海沿い"],price:"2,500円〜/泊",tel:"0557-38-3811",url:"https://ito-marinetown.co.jp/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅たかねざわ 元気あっぷむら",pref:"栃木県",features:["電源あり","温泉","広い"],price:"2,000円〜/泊",tel:"028-676-1126",url:"https://www.genkiupmura.com/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅あさひかわ",pref:"北海道",features:["電源あり","ゴミ処理可","ペットOK"],price:"2,000円〜/泊",tel:"0166-25-7960",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅みなかみ水紀行館",pref:"群馬県",features:["電源あり","川沿い","ペットOK"],price:"2,000円〜/泊",tel:"0278-72-1425",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅富士吉田",pref:"山梨県",features:["電源あり","富士山ビュー","トイレ24h"],price:"3,000円〜/泊",tel:"0555-21-1033",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅氷見漁港場外市場ひみ番屋街",pref:"富山県",features:["電源あり","海鮮市場","温泉近く"],price:"2,500円〜/泊",tel:"0766-72-3400",url:"https://himi-banya.jp/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅神戸フルーツ・フラワーパーク",pref:"兵庫県",features:["電源あり","ドッグラン","広い敷地"],price:"3,000円〜/泊",tel:"078-954-1000",url:"https://fruit-flowerpark.jp/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅桜島",pref:"鹿児島県",features:["電源あり","温泉","絶景"],price:"2,000円〜/泊",tel:"099-245-2011",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅おおき",pref:"福岡県",features:["電源あり","ペットOK","静か"],price:"1,500円〜/泊",tel:"0944-75-2150",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅すばしり",pref:"静岡県",features:["電源あり","富士山近く","広い"],price:"2,500円〜/泊",tel:"0550-75-6363",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅サンピコごうつ",pref:"島根県",features:["電源あり","海沿い","ペットOK"],price:"2,000円〜/泊",tel:"0855-52-7288",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
-    {name:"RVパーク 道の駅しんよしとみ",pref:"福岡県",features:["電源あり","温泉近く","静か"],price:"1,500円〜/泊",tel:"0979-37-7234",url:"https://www.kurumatabi.com/park/rvpark/",booking:"https://www.kurumatabi.com/park/rvpark/"},
+    {name:"RVパーク 道の駅ならは",pref:"福島県",features:["電源あり","温泉隣接","ペットOK"],price:"2,000円〜/泊",tel:"0240-25-8571"},
+    {name:"RVパーク 道の駅川場田園プラザ",pref:"群馬県",features:["電源あり","トイレ24h","ペットOK"],price:"2,500円〜/泊",tel:"0278-52-3711",url:"https://www.denenplaza.co.jp/"},
+    {name:"RVパーク 道の駅うつのみや ろまんちっく村",pref:"栃木県",features:["電源あり","温泉","ドッグラン"],price:"3,000円〜/泊",tel:"028-665-8800",url:"https://www.romanticmura.com/"},
+    {name:"RVパーク 道の駅伊東マリンタウン",pref:"静岡県",features:["電源あり","温泉","海沿い"],price:"2,500円〜/泊",tel:"0557-38-3811",url:"https://ito-marinetown.co.jp/"},
+    {name:"RVパーク 道の駅たかねざわ 元気あっぷむら",pref:"栃木県",features:["電源あり","温泉","広い"],price:"2,000円〜/泊",tel:"028-676-1126",url:"https://www.genkiupmura.com/"},
+    {name:"RVパーク 道の駅あさひかわ",pref:"北海道",features:["電源あり","ゴミ処理可","ペットOK"],price:"2,000円〜/泊",tel:"0166-25-7960"},
+    {name:"RVパーク 道の駅みなかみ水紀行館",pref:"群馬県",features:["電源あり","川沿い","ペットOK"],price:"2,000円〜/泊",tel:"0278-72-1425"},
+    {name:"RVパーク 道の駅富士吉田",pref:"山梨県",features:["電源あり","富士山ビュー","トイレ24h"],price:"3,000円〜/泊",tel:"0555-21-1033"},
+    {name:"RVパーク 道の駅氷見漁港場外市場ひみ番屋街",pref:"富山県",features:["電源あり","海鮮市場","温泉近く"],price:"2,500円〜/泊",tel:"0766-72-3400",url:"https://himi-banya.jp/"},
+    {name:"RVパーク 道の駅神戸フルーツ・フラワーパーク",pref:"兵庫県",features:["電源あり","ドッグラン","広い敷地"],price:"3,000円〜/泊",tel:"078-954-1000",url:"https://fruit-flowerpark.jp/"},
+    {name:"RVパーク 道の駅桜島",pref:"鹿児島県",features:["電源あり","温泉","絶景"],price:"2,000円〜/泊",tel:"099-245-2011"},
+    {name:"RVパーク 道の駅おおき",pref:"福岡県",features:["電源あり","ペットOK","静か"],price:"1,500円〜/泊",tel:"0944-75-2150"},
+    {name:"RVパーク 道の駅すばしり",pref:"静岡県",features:["電源あり","富士山近く","広い"],price:"2,500円〜/泊",tel:"0550-75-6363"},
+    {name:"RVパーク 道の駅サンピコごうつ",pref:"島根県",features:["電源あり","海沿い","ペットOK"],price:"2,000円〜/泊",tel:"0855-52-7288"},
+    {name:"RVパーク 道の駅しんよしとみ",pref:"福岡県",features:["電源あり","温泉近く","静か"],price:"1,500円〜/泊",tel:"0979-37-7234"},
   ];
 
   el.innerHTML=
@@ -817,7 +813,7 @@ function renderRVParkSection(){
         `<select id="rvpark-feature" class="ls-select"><option value="">設備で絞る</option><option value="ペットOK">ペットOK</option><option value="ドッグラン">ドッグラン</option><option value="温泉">温泉あり</option><option value="電源あり">電源あり</option></select>`+
         `<button id="rvpark-search-btn" class="ls-search-btn rvpark-btn">🔍 検索</button>`+
       `</div>`+
-      `<a href="https://www.kurumatabi.com/park/rvpark/" target="_blank" rel="noopener" class="rvpark-more-link">📋 RVパーク全一覧を見る（くるま旅クラブ） ↗</a>`+
+      `<a href="https://www.kurumatabi.com/" target="_blank" rel="noopener" class="rvpark-more-link">📋 RVパーク全一覧を見る（くるま旅クラブ） ↗</a>`+
       `<div id="rvpark-results" class="rvpark-results">`+
         rvParks.slice(0,5).map(rv=>renderRVParkItem(rv)).join("")+
       `</div>`+
@@ -1371,7 +1367,12 @@ function renderBadges(s){
 }
 
 // ===== プレミアム =====
-function isPremium(){ return localStorage.getItem("michinoeki_premium")==="true"; }
+// 開発用: localhost または LAN IP からアクセスした場合は自動で有料解放
+function _isDevHost(){
+  var h=location.hostname;
+  return h==="localhost"||h==="127.0.0.1"||/^192\.168\./.test(h)||/^10\./.test(h);
+}
+function isPremium(){ return localStorage.getItem("michinoeki_premium")==="true"||_isDevHost(); }
 function setPremium(v){ try { localStorage.setItem("michinoeki_premium", v?"true":"false"); } catch(e) {} }
 
 // --- ホーム画面訴求: ツァイガルニク効果 + 保有効果 ---
