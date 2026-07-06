@@ -340,18 +340,15 @@ function getStampImageUrl(stationId) {
 }
 
 function buildStampImage(station) {
-  return `<img class="stamp-img" src="${getStampImageUrl(station.id)}" alt="${escapeHtml(station.name)}" data-art="${getStampArt(station)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+  return `<img class="stamp-img" src="${getStampImageUrl(station.id)}" alt="${escapeHtml(station.name)}" data-art="${getStampArt(station)}" onerror="stampImgError(this)" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
 }
 
-// スタンプ画像が取得できない環境（オフライン・画像未配信のデプロイ先）では絵文字アートに差し替える
-document.addEventListener("error", function(e){
-  const img=e.target;
-  if(!(img instanceof HTMLImageElement) || !img.classList.contains("stamp-img")) return;
-  const fb=document.createElement("div");
-  fb.className="stamp-art-fallback";
-  fb.textContent=img.dataset.art||"🌿🛤️";
-  img.replaceWith(fb);
-}, true);
+window.stampImgError = function(img) {
+  var fb = document.createElement("div");
+  fb.className = "stamp-art-fallback";
+  fb.textContent = img.dataset.art || "🌿🛤️";
+  if (img.parentNode) img.replaceWith(fb);
+};
 
 function buildStampSVG(station, stampData) {
   return buildStampImage(station);
@@ -480,7 +477,7 @@ let currentFilter="all";
 
 function render(){
   const s=calcStats();
-  _lsInitialized=false; _rvInitialized=false; _vetInitialized=false;
+  _lsInitialized=false;
   renderWelcomeBar(s); renderDashSummary(s); renderNextQuest(s); renderPremiumNudge(s); renderHomeRecent(s); renderAchievedTitles(s); renderDogFriendlySection(s); renderVanlifeSection(s); renderRVParkSection(); renderVetSection(); renderLifestyleSearch(); renderAlmostComplete(s);
   renderList(s); renderStampbook(s); renderMap(s); renderStats(s); renderStatsMapTeaser(s); renderBadges(s);
   renderAlmostMapHint();
@@ -835,7 +832,7 @@ function renderRVParkSection(){
       filtered=filtered.filter(rv=>prefs.includes(rv.pref));
     }
     if(feature){
-      filtered=filtered.filter(rv=>rv.features.some(f=>f.includes(feature)));
+      filtered=filtered.filter(rv=>rv.features&&rv.features.some(f=>f.includes(feature)||feature.includes(f)));
     }
     const resultsEl=document.getElementById("rvpark-results");
     if(filtered.length===0){
