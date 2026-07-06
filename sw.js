@@ -1,4 +1,4 @@
-const CACHE_NAME = 'michinowan-v4';
+const CACHE_NAME = 'michinowan-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const ASSETS = [
   './privacy.html',
   './tokusho.html',
   './icon-192.png',
+  './icon-180.png',
   './icon-512.png',
   './manifest.json'
 ];
@@ -30,6 +31,7 @@ self.addEventListener('activate', function(e) {
 });
 
 self.addEventListener('fetch', function(e) {
+  if (e.request.method !== 'GET') return;
   e.respondWith(
     fetch(e.request).then(function(res) {
       if (res && res.status === 200 && res.type === 'basic') {
@@ -38,7 +40,11 @@ self.addEventListener('fetch', function(e) {
       }
       return res;
     }).catch(function() {
-      return caches.match(e.request);
+      return caches.match(e.request).then(function(cached) {
+        if (cached) return cached;
+        if (e.request.mode === 'navigate') return caches.match('./index.html');
+        return Response.error();
+      });
     })
   );
 });

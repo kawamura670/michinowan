@@ -1,8 +1,7 @@
 // ===== 収益化設定（各サービス登録後にIDを入れる） =====
 const REVENUE_CONFIG = {
-  // Stripe Payment Link — https://dashboard.stripe.com/payment-links で作成
-  // 作成時 "決済後のリダイレクト先" に ?premium=activated を付けたURLを設定
-  stripePaymentLink: "", // 例: "https://buy.stripe.com/xxxxx"
+  // Android版の有料機能はGoogle Play Billingで実装し、購入状態を安全に検証すること
+  googlePlayProductId: "michinowan_master",
 
   // 楽天アフィリエイトID — https://affiliate.rakuten.co.jp/ で取得
   rakutenAffiliateId: "", // 例: "1234abcd.5678efgh.9012ijkl"
@@ -10,6 +9,20 @@ const REVENUE_CONFIG = {
   // Amazonアソシエイト タグ — https://affiliate.amazon.co.jp/ で取得
   amazonTag: "", // 例: "michinoeki-22"
 };
+
+function escapeHtml(value){
+  return String(value == null ? "" : value)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
+}
+
+function safeImageDataUrl(value){
+  const src=String(value||"").trim();
+  return /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(src)?src:"";
+}
 
 // ===== 定数 =====
 const PREF_ORDER = [
@@ -205,8 +218,15 @@ const SETTINGS_KEY = "michinoeki_settings";
 const RING_CIRCUMFERENCE = 326.7;
 
 // ===== データ =====
-function loadManual() { try { return JSON.parse(localStorage.getItem(MANUAL_KEY)||"{}"); } catch { return {}; } }
-function saveManual(d) { try { localStorage.setItem(MANUAL_KEY, JSON.stringify(d)); } catch(e) { if(e.name==="QuotaExceededError"||e.code===22) alert("ストレージ容量が不足しています。バックアップ後、不要なデータを削除してください。"); } }
+// 写真(Base64)を含む訪問記録はサイズが大きいため、毎回JSON.parseせずキャッシュする
+let _manualCache=null;
+function loadManual() {
+  if(_manualCache) return _manualCache;
+  try { const d=JSON.parse(localStorage.getItem(MANUAL_KEY)||"{}"); _manualCache=d&&typeof d==="object"&&!Array.isArray(d)?d:{}; }
+  catch { _manualCache={}; }
+  return _manualCache;
+}
+function saveManual(d) { _manualCache=d; try { localStorage.setItem(MANUAL_KEY, JSON.stringify(d)); } catch(e) { if(e.name==="QuotaExceededError"||e.code===22) alert("ストレージ容量が不足しています。バックアップ後、不要なデータを削除してください。"); } }
 function loadDismissed() { try { return JSON.parse(localStorage.getItem(DISMISS_KEY)||"[]"); } catch { return []; } }
 function saveDismissed(a) { try { localStorage.setItem(DISMISS_KEY, JSON.stringify(a)); } catch(e) { if(e.name==="QuotaExceededError"||e.code===22) alert("ストレージ容量が不足しています。バックアップをお勧めします。"); } }
 function loadSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}"); } catch { return {}; } }
@@ -215,7 +235,7 @@ function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringi
 function getVisitInfo(id) { const m=loadManual(); return m[id] || PROGRESS_DATA[id] || null; }
 function setVisited(id, visited, photo) {
   const m=loadManual();
-  if(visited){ const d=new Date().toISOString().slice(0,10); const e={visited:true,date:d,note:""}; if(photo)e.photo=photo; else if(m[id]&&m[id].photo)e.photo=m[id].photo; m[id]=e; }
+  if(visited){ const d=new Date().toISOString().slice(0,10),prev=m[id]&&typeof m[id]==="object"?m[id]:{},e={...prev,visited:true,date:d,note:typeof prev.note==="string"?prev.note:""}; if(photo)e.photo=photo; m[id]=e; }
   else { m[id]={visited:false}; }
   saveManual(m);
 }
@@ -287,7 +307,13 @@ function calcStats() {
     if(!prefStats[s.pref]) prefStats[s.pref]={total:0,visited:0};
     prefStats[s.pref].total++;
     const i=getVisitInfo(s.id);
-    if(i&&i.visited){ visited++; prefStats[s.pref].visited++; if(i.date)visitDates.push({date:i.date,name:s.name,pref:s.pref,id:s.id}); if(i.photo)photoCount++; }
+    if(i&&i.visited){
+      visited++; prefStats[s.pref].visited++;
+      const date=typeof i.date==="string"?i.date:"";
+      if(date)visitDates.push({date,name:s.name,pref:s.pref,id:s.id});
+      if(safeImageDataUrl(i.photo)) photoCount++;
+      if(Array.isArray(i.photos)) photoCount+=i.photos.filter(safeImageDataUrl).length;
+    }
   });
   let prefComplete=0;
   Object.values(prefStats).forEach(p=>{ if(p.visited>=p.total&&p.total>0) prefComplete++; });
@@ -314,8 +340,18 @@ function getStampImageUrl(stationId) {
 }
 
 function buildStampImage(station) {
-  return `<img src="${getStampImageUrl(station.id)}" alt="${station.name}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+  return `<img class="stamp-img" src="${getStampImageUrl(station.id)}" alt="${escapeHtml(station.name)}" data-art="${getStampArt(station)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
 }
+
+// スタンプ画像が取得できない環境（オフライン・画像未配信のデプロイ先）では絵文字アートに差し替える
+document.addEventListener("error", function(e){
+  const img=e.target;
+  if(!(img instanceof HTMLImageElement) || !img.classList.contains("stamp-img")) return;
+  const fb=document.createElement("div");
+  fb.className="stamp-art-fallback";
+  fb.textContent=img.dataset.art||"🌿🛤️";
+  img.replaceWith(fb);
+}, true);
 
 function buildStampSVG(station, stampData) {
   return buildStampImage(station);
@@ -603,12 +639,13 @@ function renderAchievedTitles(s){
 
 function renderHomeRecent(s){
   const el=document.getElementById("home-recent");
+  if(!el) return;
   if(s.recentVisits.length===0){
     el.innerHTML='<div class="empty-state">まだスタンプがありません。<br>一覧から最初のスタンプを押してみましょう！</div>';
     return;
   }
   el.innerHTML=s.recentVisits.slice(0,3).map(v=>
-    `<div class="recent-chip">${PREF_EMOJI[v.pref]||"📍"} ${v.name} <span class="recent-chip-date">${v.date}</span></div>`
+    `<div class="recent-chip">${PREF_EMOJI[v.pref]||"📍"} ${v.name} <span class="recent-chip-date">${escapeHtml(v.date)}</span></div>`
   ).join("");
 }
 
@@ -1079,6 +1116,7 @@ function runLifestyleSearch(){
 
 function renderAlmostComplete(s){
   const el=document.getElementById("almost-section");
+  if(!el) return;
   const almostPrefs=[];
   Object.entries(s.prefStats).forEach(([p,d])=>{ const r=d.total-d.visited; if(r>0&&r<=3) almostPrefs.push({pref:p,remaining:r}); });
   if(almostPrefs.length===0){ el.innerHTML=""; return; }
@@ -1156,11 +1194,13 @@ function renderList(s){
         : st.status==="renewed"?'<span class="badge-renewed">リニューアル</span>'
         : "";
       const nb=st.isNew?'<span class="badge-new">NEW</span>':statusBadge;
-      const photoCount=isV?((info.photo?1:0)+(info.photos?info.photos.length:0)):0;
-      const hasNote=isV&&info.note&&info.note.length>0;
-      const notePreview=hasNote?`<div class="visited-note">📝 ${info.note.slice(0,30)}${info.note.length>30?"…":""}</div>`:"";
-      const photoPreview=isV&&info.photo?`<img class="station-photo" src="${info.photo}" alt="写真">${photoCount>1?`<span class="photo-count">+${photoCount-1}</span>`:""}`:"";
-      infoDiv.innerHTML=`<div class="station-name">${st.name}${nb}</div><div class="station-meta">${st.location}（${st.round} / ${st.date}登録）</div>${isV&&info.date?`<div class="visited-date">📅 ${info.date}</div>`:""}${notePreview}${photoPreview}`;
+      const primaryPhoto=isV?safeImageDataUrl(info.photo):"";
+      const extraPhotoCount=isV&&Array.isArray(info.photos)?info.photos.filter(safeImageDataUrl).length:0;
+      const photoCount=(primaryPhoto?1:0)+extraPhotoCount;
+      const hasNote=isV&&typeof info.note==="string"&&info.note.length>0;
+      const notePreview=hasNote?`<div class="visited-note">📝 ${escapeHtml(info.note.slice(0,30))}${info.note.length>30?"…":""}</div>`:"";
+      const photoPreview=primaryPhoto?`<img class="station-photo" src="${primaryPhoto}" alt="写真">${photoCount>1?`<span class="photo-count">+${photoCount-1}</span>`:""}`:"";
+      infoDiv.innerHTML=`<div class="station-name">${st.name}${nb}</div><div class="station-meta">${st.location}（${st.round} / ${st.date}登録）</div>${isV&&typeof info.date==="string"&&info.date?`<div class="visited-date">📅 ${escapeHtml(info.date)}</div>`:""}${notePreview}${photoPreview}`;
 
       const actionsDiv=document.createElement("div");
       actionsDiv.className="station-actions";
@@ -1216,6 +1256,12 @@ function renderList(s){
     });
     card.appendChild(header);card.appendChild(bar);card.appendChild(list);c.appendChild(card);
   });
+  if(!c.children.length){
+    const empty=document.createElement("div");
+    empty.className="empty-state";
+    empty.textContent=q?`「${q}」に一致する道の駅がありません。`:(currentFilter==="visited"?"訪問済みの道の駅はまだありません。":"条件に一致する道の駅がありません。");
+    c.appendChild(empty);
+  }
 }
 
 function renderStats(s){ renderTimeline(s); }
@@ -1228,7 +1274,7 @@ function renderTimeline(s){
   MICHINOEKI_DATA.forEach(function(st){
     var info=manual[st.id];
     if(!info || !info.visited) return;
-    entries.push({id:st.id,name:st.name,pref:st.pref,date:info.date||"",photo:info.photo||null,memo:info.note||""});
+    entries.push({id:st.id,name:st.name,pref:st.pref,date:typeof info.date==="string"?info.date:"",photo:safeImageDataUrl(info.photo),memo:typeof info.note==="string"?info.note:""});
   });
   entries.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
   if(entries.length===0){
@@ -1262,11 +1308,11 @@ function renderTimeline(s){
       delete msMap[e.date];
     }
     var photoHtml=e.photo?'<img class="tl-photo" src="'+e.photo+'" alt="">':'';
-    var memoHtml=e.memo?'<div class="tl-memo">'+e.memo.substring(0,50)+(e.memo.length>50?"…":"")+'</div>':"";
+    var memoHtml=e.memo?'<div class="tl-memo">'+escapeHtml(e.memo.substring(0,50))+(e.memo.length>50?"…":"")+'</div>':"";
     html+='<div class="tl-entry" data-id="'+e.id+'">'+
       '<div class="tl-dot"></div>'+
       '<div class="tl-content">'+
-        '<div class="tl-header"><span class="tl-name">'+(PREF_EMOJI[e.pref]||"📍")+" "+e.name+'</span><span class="tl-date">'+(e.date||"")+'</span></div>'+
+        '<div class="tl-header"><span class="tl-name">'+(PREF_EMOJI[e.pref]||"📍")+" "+e.name+'</span><span class="tl-date">'+escapeHtml(e.date||"")+'</span></div>'+
         '<div class="tl-pref">'+e.pref+'</div>'+
         photoHtml+memoHtml+
       '</div></div>';
@@ -1337,7 +1383,7 @@ function renderPremiumNudge(stats){
   if(!el) return;
   if(isPremium()){ el.innerHTML=""; return; }
 
-  const pct=stats.total?Math.round((stats.visited/stats.total)*10)/10:0;
+  const pct=stats.total?Math.round((stats.visited/stats.total)*1000)/10:0;
   const filledCount=Object.values(stats.prefStats).filter(d=>d.visited>0).length;
 
   let personalMsg;
@@ -1474,15 +1520,11 @@ document.querySelectorAll(".price-option").forEach(o=>{
 });
 document.getElementById("paywall-cta").addEventListener("click",()=>{
   document.getElementById("paywall-modal").hidden=true;
-  handleStripeCheckout();
+  handleGooglePlayPurchase();
 });
 
-function handleStripeCheckout(){
-  if(REVENUE_CONFIG.stripePaymentLink){
-    window.location.href=REVENUE_CONFIG.stripePaymentLink;
-  } else {
-    alert("決済機能は現在準備中です。もうしばらくお待ちください。");
-  }
+function handleGooglePlayPurchase(){
+  alert("Google Play決済は現在準備中です。対応版の公開までお待ちください。");
 }
 
 function activatePremium(){
@@ -1491,13 +1533,14 @@ function activatePremium(){
   showPremiumCelebration();
 }
 
-// 決済後リダイレクト判定
-(function checkPaymentReturn(){
+// URLパラメーターだけで購入済みにすると誰でも解除できるため、ここでは有効化しない。
+// 本番の購入復元はStripeのWebhookまたはアプリストアのレシート検証後に activatePremium() を呼ぶ。
+(function discardUnverifiedPaymentReturn(){
   const params=new URLSearchParams(window.location.search);
-  if(params.get("premium")==="activated"){
-    setPremium(true);
-    window.history.replaceState({}, "", window.location.pathname);
-    setTimeout(()=>{ updatePremiumUI(); render(); showPremiumCelebration(); }, 500);
+  if(params.has("premium")){
+    params.delete("premium");
+    const query=params.toString();
+    window.history.replaceState({}, "", window.location.pathname+(query?"?"+query:"")+window.location.hash);
   }
 })();
 
@@ -1627,11 +1670,14 @@ function getStationFacilities(st){
 }
 
 const USER_CONTRIB_KEY="michinoeki_user_contrib";
+function loadUserContribData(){
+  try{ const d=JSON.parse(localStorage.getItem(USER_CONTRIB_KEY)||"{}"); return d&&typeof d==="object"&&!Array.isArray(d)?d:{}; }catch{ return {}; }
+}
 function loadUserContrib(stationId){
-  try{ const d=JSON.parse(localStorage.getItem(USER_CONTRIB_KEY)||"{}"); return d[stationId]||null; }catch{ return null; }
+  return loadUserContribData()[stationId]||null;
 }
 function saveUserContrib(stationId, data){
-  try{ const d=JSON.parse(localStorage.getItem(USER_CONTRIB_KEY)||"{}"); d[stationId]=data; localStorage.setItem(USER_CONTRIB_KEY,JSON.stringify(d)); }catch{}
+  try{ const d=loadUserContribData(); d[stationId]=data; localStorage.setItem(USER_CONTRIB_KEY,JSON.stringify(d)); }catch(e){ if(e.name==="QuotaExceededError"||e.code===22) alert("ストレージ容量が不足しています。バックアップをお勧めします。"); }
 }
 
 function renderStars(n,max){
@@ -1665,18 +1711,18 @@ function openStationDetail(stationId){
   html+=`<div class="sd-section sd-facility-section">`;
   html+=`<div class="sd-section-title">🐕 わんこ情報</div>`;
   html+=`<div class="sd-dog-grid">`;
-  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.hasRun?"✅":"❌"}</span><span class="sd-dog-key">ドッグラン</span><span class="sd-dog-val">${d.runType}</span></div>`;
+  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.hasRun?"✅":"❌"}</span><span class="sd-dog-key">ドッグラン</span><span class="sd-dog-val">${escapeHtml(d.runType)}</span></div>`;
   html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.largeDog?"✅":"⚠️"}</span><span class="sd-dog-key">大型犬</span><span class="sd-dog-val">${d.largeDog?"OK":"要確認"}</span></div>`;
   html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.separated?"✅":"—"}</span><span class="sd-dog-key">小型/大型 分離</span><span class="sd-dog-val">${d.separated?"分離あり":"分離なし/不明"}</span></div>`;
-  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">📐</span><span class="sd-dog-key">広さ</span><span class="sd-dog-val">${d.size}</span></div>`;
-  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">📄</span><span class="sd-dog-key">証明書</span><span class="sd-dog-val">${d.certificate}</span></div>`;
-  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">💰</span><span class="sd-dog-key">料金</span><span class="sd-dog-val">${d.fee}</span></div>`;
+  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">📐</span><span class="sd-dog-key">広さ</span><span class="sd-dog-val">${escapeHtml(d.size)}</span></div>`;
+  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">📄</span><span class="sd-dog-key">証明書</span><span class="sd-dog-val">${escapeHtml(d.certificate)}</span></div>`;
+  html+=`<div class="sd-dog-row"><span class="sd-dog-icon">💰</span><span class="sd-dog-key">料金</span><span class="sd-dog-val">${escapeHtml(d.fee)}</span></div>`;
   html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.leash?"🔗":"🐕‍🦺"}</span><span class="sd-dog-key">リード</span><span class="sd-dog-val">${d.leash?"リード必須":"ドッグラン内は自由"}</span></div>`;
   html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.water?"💧":"—"}</span><span class="sd-dog-key">水飲み場</span><span class="sd-dog-val">${d.water?"あり":"不明"}</span></div>`;
   html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.shade?"🌳":"—"}</span><span class="sd-dog-key">日陰・屋根</span><span class="sd-dog-val">${d.shade?"あり":"不明"}</span></div>`;
   html+=`<div class="sd-dog-row"><span class="sd-dog-icon">${d.petFriendlyShop?"🛒":"—"}</span><span class="sd-dog-key">ペット同伴ショップ</span><span class="sd-dog-val">${d.petFriendlyShop?"一部店舗OK":"不可/不明"}</span></div>`;
   html+=`</div>`;
-  if(d.notes) html+=`<div class="sd-dog-notes">📝 ${d.notes}</div>`;
+  if(d.notes) html+=`<div class="sd-dog-notes">📝 ${escapeHtml(d.notes)}</div>`;
   const isReal=d.source==="real";
   if(!isReal){
     html+=`<div class="sd-estimated-banner">⚠️ この情報はAI推定です。実際と異なる場合があります</div>`;
@@ -1725,8 +1771,8 @@ function openStationDetail(stationId){
   }
 
   if(visited){
-    const photos=(info.photos||[]);
-    const allPhotos=info.photo?[info.photo,...photos]:[...photos];
+    const photos=Array.isArray(info.photos)?info.photos:[];
+    const allPhotos=(info.photo?[info.photo,...photos]:[...photos]).map(safeImageDataUrl).filter(Boolean);
     const premium=isPremium();
     const maxFree=1;
 
@@ -1748,7 +1794,7 @@ function openStationDetail(stationId){
     html+=`<div class="sd-section">`;
     html+=`<div class="sd-section-title">📝 旅の日記</div>`;
     if(premium){
-      html+=`<textarea class="sd-diary" id="sd-diary" placeholder="この道の駅の思い出を書いてみましょう…">${info.note||""}</textarea>`;
+      html+=`<textarea class="sd-diary" id="sd-diary" placeholder="この道の駅の思い出を書いてみましょう…">${escapeHtml(info.note||"")}</textarea>`;
     } else {
       html+=`<div class="sd-diary-lock" id="sd-diary-lock">`;
       html+=`<div class="sd-diary-lock-icon">📝</div>`;
@@ -1930,10 +1976,46 @@ stampSearch.addEventListener("input",()=>{const t=stampSearch.value.trim();stamp
 stampConfirm.addEventListener("click",()=>{if(stampSelectedId===null)return;const st=MICHINOEKI_DATA.find(s=>s.id===stampSelectedId);setVisited(stampSelectedId,true,stampPhotoData);stampModal.hidden=true;render();checkNewBadges();checkCertificateTriggers();if(st)showPremiumToast(st.name,st.pref);});
 
 // ===== バックアップ =====
-document.getElementById("export-btn").addEventListener("click",()=>{const d={manual:loadManual(),dismissed:loadDismissed(),settings:loadSettings(),exportedAt:new Date().toISOString()};const b=new Blob([JSON.stringify(d)],{type:"application/json"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=`michinoeki_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(u);});
+function isPlainObject(value){ return !!value&&typeof value==="object"&&!Array.isArray(value); }
+function createBackupData(){
+  return {app:"michinowan",schemaVersion:2,manual:loadManual(),dismissed:loadDismissed(),settings:loadSettings(),userContrib:loadUserContribData(),exportedAt:new Date().toISOString()};
+}
+function validateBackupData(data){
+  if(!isPlainObject(data)) return false;
+  if(data.manual!==undefined&&!isPlainObject(data.manual)) return false;
+  if(data.dismissed!==undefined&&!Array.isArray(data.dismissed)) return false;
+  if(data.settings!==undefined&&!isPlainObject(data.settings)) return false;
+  if(data.userContrib!==undefined&&!isPlainObject(data.userContrib)) return false;
+  return true;
+}
+function downloadBackupFile(file,fileName){
+  const url=URL.createObjectURL(file),anchor=document.createElement("a");
+  anchor.href=url; anchor.download=fileName; anchor.style.display="none";
+  document.body.appendChild(anchor); anchor.click();
+  setTimeout(()=>{ anchor.remove(); URL.revokeObjectURL(url); },1500);
+}
+async function exportBackup(){
+  const fileName=`michinowan_backup_${new Date().toISOString().slice(0,10)}.json`;
+  const file=new File([JSON.stringify(createBackupData(),null,2)],fileName,{type:"application/json;charset=utf-8"});
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{ await navigator.share({files:[file],title:"みちのわん バックアップ",text:"みちのわんの訪問記録バックアップです。"}); return; }
+    catch(e){ if(e&&e.name==="AbortError") return; }
+  }
+  downloadBackupFile(file,fileName);
+}
+document.getElementById("export-btn").addEventListener("click",exportBackup);
 const importFile=document.getElementById("import-file");
 document.getElementById("import-btn").addEventListener("click",()=>importFile.click());
-importFile.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d||typeof d!=="object"){alert("無効なバックアップファイルです。");return;}if(d.manual&&typeof d.manual!=="object"){alert("バックアップデータの形式が不正です。");return;}if(d.manual)saveManual(d.manual);if(d.dismissed)saveDismissed(d.dismissed);if(d.settings)saveSettings(d.settings);render();alert("バックアップを読み込みました！");}catch{alert("読み込みに失敗しました。ファイルの形式を確認してください。");}};r.readAsText(f);importFile.value="";});
+importFile.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!validateBackupData(d)){alert("バックアップデータの形式が不正です。");return;}if(d.manual!==undefined)saveManual(d.manual);if(d.dismissed!==undefined)saveDismissed(d.dismissed);if(d.settings!==undefined)saveSettings(d.settings);if(d.userContrib!==undefined)localStorage.setItem(USER_CONTRIB_KEY,JSON.stringify(d.userContrib));render();alert("バックアップを読み込みました！");}catch{alert("読み込みに失敗しました。ファイルの形式を確認してください。");}};r.readAsText(f);importFile.value="";});
+
+// ===== iPhoneホーム画面追加ガイド =====
+const iosInstallBtn=document.getElementById("ios-install-btn"),iosInstallModal=document.getElementById("ios-install-modal"),iosInstallClose=document.getElementById("ios-install-close");
+const isAppleMobile=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const isStandalone=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
+if(iosInstallBtn&&isAppleMobile&&!isStandalone) iosInstallBtn.hidden=false;
+if(iosInstallBtn&&iosInstallModal) iosInstallBtn.addEventListener("click",()=>{iosInstallModal.hidden=false;});
+if(iosInstallClose&&iosInstallModal) iosInstallClose.addEventListener("click",()=>{iosInstallModal.hidden=true;});
+if(iosInstallModal) iosInstallModal.addEventListener("click",e=>{if(e.target===iosInstallModal)iosInstallModal.hidden=true;});
 
 // ===== 音声 =====
 const voiceModal=document.getElementById("voice-modal"),voiceStatus=document.getElementById("voice-status"),voiceRecognized=document.getElementById("voice-recognized"),voiceMatches=document.getElementById("voice-matches"),voiceDoneMsg=document.getElementById("voice-done-msg"),voiceMicBtn=document.getElementById("voice-mic");
@@ -1949,8 +2031,8 @@ voiceMicBtn.addEventListener("click",()=>{if(isListening){recognition.stop();isL
 document.getElementById("voice-close").addEventListener("click",()=>{if(recognition)recognition.stop();isListening=false;voiceModal.hidden=true;});
 
 // ===== シェア =====
-document.getElementById("share-btn").addEventListener("click",()=>{const s=calcStats(),pct=s.total?Math.round((s.visited/s.total)*10)/10:0,lv=getLevel(s.visited);document.getElementById("share-card").innerHTML=`<h3>${lv.emoji} ${lv.title}</h3><div class="share-number">${s.visited} / ${s.total}</div><div class="share-detail">訪問達成率 ${pct}% ｜ ${s.prefComplete}県制覇</div><div class="share-app">みちのわん</div>`;document.getElementById("share-modal").hidden=false;});
-document.getElementById("share-copy").addEventListener("click",()=>{const s=calcStats(),pct=s.total?Math.round((s.visited/s.total)*10)/10:0,lv=getLevel(s.visited);navigator.clipboard.writeText(`${lv.emoji} ${lv.title}\n🚗 みちのわん\n${s.visited}/${s.total}駅（${pct}%）\n${s.prefComplete}県制覇！\n#みちのわん #犬と車中泊 #道の駅巡り #愛犬旅`).then(()=>alert("コピーしました！SNSに貼り付けてシェア！")).catch(()=>alert("コピーに失敗しました"));});
+document.getElementById("share-btn").addEventListener("click",()=>{const s=calcStats(),pct=s.total?Math.round((s.visited/s.total)*1000)/10:0,lv=getLevel(s.visited);document.getElementById("share-card").innerHTML=`<h3>${lv.emoji} ${lv.title}</h3><div class="share-number">${s.visited} / ${s.total}</div><div class="share-detail">訪問達成率 ${pct}% ｜ ${s.prefComplete}県制覇</div><div class="share-app">みちのわん</div>`;document.getElementById("share-modal").hidden=false;});
+document.getElementById("share-copy").addEventListener("click",()=>{const s=calcStats(),pct=s.total?Math.round((s.visited/s.total)*1000)/10:0,lv=getLevel(s.visited);navigator.clipboard.writeText(`${lv.emoji} ${lv.title}\n🚗 みちのわん\n${s.visited}/${s.total}駅（${pct}%）\n${s.prefComplete}県制覇！\n#みちのわん #犬と車中泊 #道の駅巡り #愛犬旅`).then(()=>alert("コピーしました！SNSに貼り付けてシェア！")).catch(()=>alert("コピーに失敗しました"));});
 document.getElementById("share-close").addEventListener("click",()=>{document.getElementById("share-modal").hidden=true;});
 
 // ===== マップポップアップ =====
@@ -2064,7 +2146,9 @@ document.getElementById("cert-share").addEventListener("click", function() {
 
 function checkCertificateTriggers() {
   var s = calcStats();
-  var earned = JSON.parse(localStorage.getItem("tabique_certs") || "[]");
+  var earned;
+  try { earned = JSON.parse(localStorage.getItem("tabique_certs") || "[]"); } catch(e) { earned = []; }
+  if (!Array.isArray(earned)) earned = [];
   var newCerts = [];
 
   // Milestone certificates
