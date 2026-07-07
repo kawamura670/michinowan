@@ -1811,11 +1811,20 @@ function openStationDetail(stationId){
 
   document.querySelectorAll(".sd-photo-thumb").forEach(img=>{
     img.addEventListener("click",()=>{
+      const idx=parseInt(img.dataset.idx,10);
       const ov=document.createElement("div");
       ov.className="sd-photo-full-overlay";
-      ov.innerHTML=`<img src="${img.src}">`;
+      ov.innerHTML=`<img src="${img.src}"><button type="button" class="sd-photo-delete-btn">🗑 削除</button>`;
       ov.addEventListener("click",()=>ov.remove());
       document.body.appendChild(ov);
+      ov.querySelector(".sd-photo-delete-btn").addEventListener("click",e=>{
+        e.stopPropagation();
+        if(confirm("この写真を削除しますか？")){
+          removePhotoFromStation(_detailStationId, idx);
+          ov.remove();
+          openStationDetail(_detailStationId);
+        }
+      });
     });
   });
 
@@ -1919,6 +1928,20 @@ function addPhotoToStation(stationId, dataUrl){
     if(!entry.photos) entry.photos=[];
     entry.photos.push(dataUrl);
   }
+  m[stationId]=entry;
+  saveManual(m);
+}
+
+function removePhotoFromStation(stationId, idx){
+  const m=loadManual();
+  const entry=m[stationId];
+  if(!entry) return;
+  const photos=Array.isArray(entry.photos)?entry.photos:[];
+  const all=entry.photo?[entry.photo,...photos]:[...photos];
+  if(idx<0||idx>=all.length) return;
+  all.splice(idx,1);
+  if(all.length){ entry.photo=all[0]; entry.photos=all.slice(1); }
+  else { delete entry.photo; delete entry.photos; }
   m[stationId]=entry;
   saveManual(m);
 }

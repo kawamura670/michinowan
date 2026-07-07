@@ -1131,6 +1131,12 @@ body {
   max-width: 92%; max-height: 85vh; border-radius: 8px;
   object-fit: contain;
 }
+.sd-photo-delete-btn {
+  position: absolute; bottom: 8vh; left: 50%; transform: translateX(-50%);
+  background: rgba(220,53,53,0.92); color: #fff; border: none;
+  border-radius: 24px; padding: 12px 24px; font-size: 0.9rem; font-weight: 700;
+  cursor: pointer;
+}
 
 /* ===== アフィリエイトリンク ===== */
 .sd-affiliate { margin-bottom: 18px; }

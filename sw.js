@@ -1,4 +1,4 @@
-const CACHE_NAME = 'michinowan-v12';
+const CACHE_NAME = 'michinowan-v13';
 const ASSETS = [
   './',
   './index.html',
