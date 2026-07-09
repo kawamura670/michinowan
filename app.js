@@ -3,6 +3,11 @@ const REVENUE_CONFIG = {
   // Android版の有料機能はGoogle Play Billingで実装し、購入状態を安全に検証すること
   googlePlayProductId: "michinowan_master",
 
+  // Web版の購入ページURL（BOOTH）。商品ページ公開後は items/xxxx の個別URLを設定する。
+  // ショップURL https://michinowan.booth.pm/ （商品ページ未公開のため、公開までは空にして「準備中」案内を出す）
+  // Google Play版としてビルドする際は、Play課金以外への誘導が規約違反になるため必ず空文字に戻すこと
+  webPurchaseUrl: "",
+
   // 楽天アフィリエイトID — https://affiliate.rakuten.co.jp/ で取得
   rakutenAffiliateId: "", // 例: "1234abcd.5678efgh.9012ijkl"
 
@@ -1375,6 +1380,32 @@ function _isDevHost(){
 function isPremium(){ return localStorage.getItem("michinoeki_premium")==="true"||_isDevHost(); }
 function setPremium(v){ try { localStorage.setItem("michinoeki_premium", v?"true":"false"); } catch(e) {} }
 
+// ===== ライセンスコード（Web直販） =====
+// アプリにはSHA-256ハッシュ(license_hashes.js)のみを同梱し、コード原本と照合する。
+// サーバーを持たないためクライアント側検証となり、厳密な複製防止はできない前提の設計（¥980買い切りの許容リスク）。
+const LICENSE_STORAGE_KEY="michinoeki_license_code";
+function normalizeLicenseCode(input){ return String(input==null?"":input).toUpperCase().replace(/[^0-9A-Z]/g,""); }
+function loadLicenseCode(){ try { return localStorage.getItem(LICENSE_STORAGE_KEY)||""; } catch(e) { return ""; } }
+function saveLicenseCode(code){ try { localStorage.setItem(LICENSE_STORAGE_KEY, normalizeLicenseCode(code)); } catch(e) {} }
+async function sha256Hex(text){
+  const buf=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function verifyLicenseCode(input){
+  const code=normalizeLicenseCode(input);
+  if(code.length<10 || !Array.isArray(window.MICHINOWAN_LICENSE_HASHES)) return false;
+  if(!(window.crypto && window.crypto.subtle)) return false; // HTTPS外では検証不可
+  try { return window.MICHINOWAN_LICENSE_HASHES.includes(await sha256Hex(code)); }
+  catch(e) { return false; }
+}
+// 起動時・バックアップ復元時: 保存済みコードを再検証して購入済み状態を復元する
+async function applyStoredLicense(){
+  if(localStorage.getItem("michinoeki_premium")==="true") return;
+  const stored=loadLicenseCode();
+  if(!stored) return;
+  if(await verifyLicenseCode(stored)){ setPremium(true); updatePremiumUI(); render(); }
+}
+
 // --- ホーム画面訴求: ツァイガルニク効果 + 保有効果 ---
 function renderPremiumNudge(stats){
   const el=document.getElementById("home-premium-nudge");
@@ -1405,7 +1436,7 @@ function renderPremiumNudge(stats){
         `<span class="premium-nudge-feat">✨ 制覇県が輝く演出</span>` +
       `</div>` +
       `<button class="premium-nudge-cta">マップを解放する</button>` +
-      `<div class="premium-nudge-social">旅好きユーザーに人気 No.1 の機能</div>` +
+      `<div class="premium-nudge-social">買い切り ¥980・追加課金なし</div>` +
     `</div>`;
   document.getElementById("premium-nudge-card").addEventListener("click", showPaywall);
 }
@@ -1507,7 +1538,10 @@ function updatePremiumUI(){
 function showPaywall(){ document.getElementById("paywall-modal").hidden=false; }
 
 document.getElementById("premium-gate-cta").addEventListener("click", showPaywall);
-document.getElementById("premium-gate-restore").addEventListener("click", showPaywall);
+document.getElementById("premium-gate-restore").addEventListener("click",()=>{
+  showPaywall();
+  document.getElementById("license-section").hidden=false;
+});
 
 document.querySelectorAll(".price-option").forEach(o=>{
   o.addEventListener("click",()=>{
@@ -1516,13 +1550,43 @@ document.querySelectorAll(".price-option").forEach(o=>{
   });
 });
 document.getElementById("paywall-cta").addEventListener("click",()=>{
-  document.getElementById("paywall-modal").hidden=true;
-  handleGooglePlayPurchase();
+  if(REVENUE_CONFIG.webPurchaseUrl){
+    window.open(REVENUE_CONFIG.webPurchaseUrl,"_blank","noopener");
+  } else {
+    alert("購入ページは現在準備中です。公開まで少しお待ちください。");
+  }
 });
 
-function handleGooglePlayPurchase(){
-  alert("Google Play決済は現在準備中です。対応版の公開までお待ちください。");
-}
+// --- ライセンスコード入力 ---
+const licenseToggle=document.getElementById("license-toggle");
+const licenseSection=document.getElementById("license-section");
+const licenseInput=document.getElementById("license-input");
+const licenseSubmit=document.getElementById("license-submit");
+const licenseError=document.getElementById("license-error");
+licenseToggle.addEventListener("click",()=>{
+  licenseSection.hidden=!licenseSection.hidden;
+  if(!licenseSection.hidden) licenseInput.focus();
+});
+licenseSubmit.addEventListener("click",async()=>{
+  const raw=licenseInput.value;
+  if(!normalizeLicenseCode(raw)){
+    licenseError.textContent="コードを入力してください。";
+    licenseError.hidden=false;
+    return;
+  }
+  licenseSubmit.disabled=true; licenseError.hidden=true;
+  const ok=await verifyLicenseCode(raw);
+  licenseSubmit.disabled=false;
+  if(ok){
+    saveLicenseCode(raw);
+    licenseInput.value="";
+    document.getElementById("paywall-modal").hidden=true;
+    activatePremium();
+  } else {
+    licenseError.textContent="コードが確認できませんでした。ハイフンを含めてそのまま入力してみてください。";
+    licenseError.hidden=false;
+  }
+});
 
 function activatePremium(){
   setPremium(true);
@@ -1998,7 +2062,10 @@ stampConfirm.addEventListener("click",()=>{if(stampSelectedId===null)return;cons
 // ===== バックアップ =====
 function isPlainObject(value){ return !!value&&typeof value==="object"&&!Array.isArray(value); }
 function createBackupData(){
-  return {app:"michinowan",schemaVersion:2,manual:loadManual(),dismissed:loadDismissed(),settings:loadSettings(),userContrib:loadUserContribData(),exportedAt:new Date().toISOString()};
+  const backup={app:"michinowan",schemaVersion:2,manual:loadManual(),dismissed:loadDismissed(),settings:loadSettings(),userContrib:loadUserContribData(),exportedAt:new Date().toISOString()};
+  const license=loadLicenseCode();
+  if(license) backup.license=license;
+  return backup;
 }
 function validateBackupData(data){
   if(!isPlainObject(data)) return false;
@@ -2006,6 +2073,7 @@ function validateBackupData(data){
   if(data.dismissed!==undefined&&!Array.isArray(data.dismissed)) return false;
   if(data.settings!==undefined&&!isPlainObject(data.settings)) return false;
   if(data.userContrib!==undefined&&!isPlainObject(data.userContrib)) return false;
+  if(data.license!==undefined&&typeof data.license!=="string") return false;
   return true;
 }
 function downloadBackupFile(file,fileName){
@@ -2016,17 +2084,47 @@ function downloadBackupFile(file,fileName){
 }
 async function exportBackup(){
   const fileName=`michinowan_backup_${new Date().toISOString().slice(0,10)}.json`;
-  const file=new File([JSON.stringify(createBackupData(),null,2)],fileName,{type:"application/json;charset=utf-8"});
+  const file=new File([JSON.stringify(createBackupData(),null,2)],fileName,{type:"application/json"});
   if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
     try{ await navigator.share({files:[file],title:"みちのわん バックアップ",text:"みちのわんの訪問記録バックアップです。"}); return; }
     catch(e){ if(e&&e.name==="AbortError") return; }
   }
+  // iOSホーム画面アプリではa[download]が効かず生JSONへ遷移してしまうため、コピー方式のモーダルへ切り替える
+  if(isAppleMobile&&isStandalone){ openBackupModal(); return; }
   downloadBackupFile(file,fileName);
 }
 document.getElementById("export-btn").addEventListener("click",exportBackup);
+function importBackupFromText(text){
+  try{
+    const d=JSON.parse(text);
+    if(!validateBackupData(d)){alert("バックアップデータの形式が不正です。");return false;}
+    if(d.manual!==undefined)saveManual(d.manual);
+    if(d.dismissed!==undefined)saveDismissed(d.dismissed);
+    if(d.settings!==undefined)saveSettings(d.settings);
+    if(d.userContrib!==undefined)localStorage.setItem(USER_CONTRIB_KEY,JSON.stringify(d.userContrib));
+    if(typeof d.license==="string"&&d.license){saveLicenseCode(d.license);applyStoredLicense();}
+    render();alert("バックアップを読み込みました！");return true;
+  }catch{alert("読み込みに失敗しました。ファイルの形式を確認してください。");return false;}
+}
 const importFile=document.getElementById("import-file");
 document.getElementById("import-btn").addEventListener("click",()=>importFile.click());
-importFile.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!validateBackupData(d)){alert("バックアップデータの形式が不正です。");return;}if(d.manual!==undefined)saveManual(d.manual);if(d.dismissed!==undefined)saveDismissed(d.dismissed);if(d.settings!==undefined)saveSettings(d.settings);if(d.userContrib!==undefined)localStorage.setItem(USER_CONTRIB_KEY,JSON.stringify(d.userContrib));render();alert("バックアップを読み込みました！");}catch{alert("読み込みに失敗しました。ファイルの形式を確認してください。");}};r.readAsText(f);importFile.value="";});
+importFile.addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{importBackupFromText(ev.target.result);};r.readAsText(f);importFile.value="";});
+
+// ===== バックアップ（コピー方式）モーダル =====
+const backupModal=document.getElementById("backup-modal"),backupPasteArea=document.getElementById("backup-paste-area"),backupCopyDone=document.getElementById("backup-copy-done");
+function openBackupModal(){backupCopyDone.hidden=true;backupPasteArea.value="";backupModal.hidden=false;}
+document.getElementById("backup-copy-btn").addEventListener("click",()=>{
+  const text=JSON.stringify(createBackupData());
+  navigator.clipboard.writeText(text).then(()=>{backupCopyDone.hidden=false;})
+    .catch(()=>{backupPasteArea.value=text;alert("自動コピーができませんでした。下の欄の文を長押し→全選択→コピーしてください。");});
+});
+document.getElementById("backup-paste-import-btn").addEventListener("click",()=>{
+  const t=backupPasteArea.value.trim();
+  if(!t){alert("バックアップ文を貼り付けてください。");return;}
+  if(importBackupFromText(t)){backupPasteArea.value="";backupModal.hidden=true;}
+});
+document.getElementById("backup-close").addEventListener("click",()=>{backupModal.hidden=true;});
+backupModal.addEventListener("click",e=>{if(e.target===backupModal)backupModal.hidden=true;});
 
 // ===== iPhoneホーム画面追加ガイド =====
 const iosInstallBtn=document.getElementById("ios-install-btn"),iosInstallModal=document.getElementById("ios-install-modal"),iosInstallClose=document.getElementById("ios-install-close");
@@ -2038,15 +2136,18 @@ if(iosInstallClose&&iosInstallModal) iosInstallClose.addEventListener("click",()
 if(iosInstallModal) iosInstallModal.addEventListener("click",e=>{if(e.target===iosInstallModal)iosInstallModal.hidden=true;});
 
 // ===== 音声 =====
-const voiceModal=document.getElementById("voice-modal"),voiceStatus=document.getElementById("voice-status"),voiceRecognized=document.getElementById("voice-recognized"),voiceMatches=document.getElementById("voice-matches"),voiceDoneMsg=document.getElementById("voice-done-msg"),voiceMicBtn=document.getElementById("voice-mic");
+const voiceModal=document.getElementById("voice-modal"),voiceStatus=document.getElementById("voice-status"),voiceRecognized=document.getElementById("voice-recognized"),voiceMatches=document.getElementById("voice-matches"),voiceDoneMsg=document.getElementById("voice-done-msg"),voiceMicBtn=document.getElementById("voice-mic"),voiceFallbackInput=document.getElementById("voice-fallback-input");
 let recognition=null,isListening=false;
+// iOSのホーム画面アプリ等ではSpeechRecognition自体が使えないため、入力欄（キーボードの音声入力で代替可）へフォールバックする
+const srSupported=!!(window.SpeechRecognition||window.webkitSpeechRecognition);
 function initSR(){const S=window.SpeechRecognition||window.webkitSpeechRecognition;if(!S)return null;const r=new S();r.lang="ja-JP";r.continuous=false;r.interimResults=true;r.maxAlternatives=3;return r;}
 function norm(s){return s.replace(/[\s　]+/g,"").replace(/[ぁ-ん]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60)).toLowerCase();}
 function score(a,b){const x=norm(a),y=norm(b);if(x===y)return 100;if(y.includes(x)||x.includes(y))return 80;const sh=x.length<y.length?x:y,lo=x.length<y.length?y:x;let m=0,p=0;for(const c of sh){const i=lo.indexOf(c,p);if(i!==-1){m++;p=i+1;}}return Math.round((m/lo.length)*70);}
 function findM(t){if(!t.trim())return[];return MICHINOEKI_DATA.map(s=>({station:s,score:Math.max(score(t,s.name),score(t,s.pref+s.name))})).sort((a,b)=>b.score-a.score).filter(r=>r.score>=30).slice(0,8);}
 function showM(ms){voiceMatches.innerHTML="";ms.forEach(m=>{const i=getVisitInfo(m.station.id),d=!!(i&&i.visited),it=document.createElement("div");it.className="voice-match-item"+(d?" checked":"");it.innerHTML=`<span class="voice-match-name">${m.station.name}</span><span class="voice-match-pref">${m.station.pref}</span><span class="voice-match-score">${d?"✅ 済":"タップでチェック"}</span>`;if(!d){it.addEventListener("click",()=>{setVisited(m.station.id,true);it.classList.add("checked");it.querySelector(".voice-match-score").textContent="✅ 済";voiceDoneMsg.textContent=`✅ ${m.station.pref} ${m.station.name} をチェック！`;voiceDoneMsg.hidden=false;setTimeout(()=>voiceDoneMsg.hidden=true,3000);render();checkNewBadges();checkCertificateTriggers();showPremiumToast(m.station.name,m.station.pref);});}voiceMatches.appendChild(it);});}
 function startL(){if(!recognition){recognition=initSR();if(!recognition){voiceStatus.textContent="音声認識に対応していません（Chrome推奨）";return;}}recognition.onresult=e=>{let im="",fi="";for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)fi+=t;else im+=t;}const d=fi||im;voiceRecognized.textContent=`「${d}」`;showM(findM(d));};recognition.onend=()=>{isListening=false;voiceMicBtn.textContent="🎤 聴き取り開始";voiceMicBtn.classList.remove("recording");voiceStatus.textContent="もう一度マイクボタンを押してください";voiceStatus.classList.remove("listening");};recognition.onerror=e=>{isListening=false;voiceMicBtn.textContent="🎤 聴き取り開始";voiceMicBtn.classList.remove("recording");voiceStatus.classList.remove("listening");voiceStatus.textContent=e.error==="not-allowed"?"マイクが許可されていません":e.error==="no-speech"?"音声が検出されませんでした":"エラーが発生しました";};recognition.start();isListening=true;voiceMicBtn.textContent="⏹ 聴き取り中...";voiceMicBtn.classList.add("recording");voiceStatus.textContent="🔴 聴いています...道の駅名を読み上げてください";voiceStatus.classList.add("listening");voiceDoneMsg.hidden=true;}
-document.getElementById("voice-btn").addEventListener("click",()=>{voiceRecognized.textContent="";voiceMatches.innerHTML="";voiceDoneMsg.hidden=true;voiceStatus.textContent="マイクボタンを押してください";voiceStatus.classList.remove("listening");voiceMicBtn.textContent="🎤 聴き取り開始";voiceMicBtn.classList.remove("recording");voiceModal.hidden=false;});
+document.getElementById("voice-btn").addEventListener("click",()=>{voiceRecognized.textContent="";voiceMatches.innerHTML="";voiceDoneMsg.hidden=true;voiceStatus.classList.remove("listening");voiceMicBtn.textContent="🎤 聴き取り開始";voiceMicBtn.classList.remove("recording");if(srSupported){voiceStatus.textContent="マイクボタンを押してください";voiceMicBtn.hidden=false;voiceFallbackInput.hidden=true;}else{voiceStatus.textContent="この端末では自動聴き取りが使えないため、入力欄をタップしてキーボードのマイク🎤で話すか、駅名を入力してください";voiceMicBtn.hidden=true;voiceFallbackInput.hidden=false;voiceFallbackInput.value="";}voiceModal.hidden=false;});
+voiceFallbackInput.addEventListener("input",()=>{const t=voiceFallbackInput.value.trim();voiceRecognized.textContent=t?`「${t}」`:"";showM(findM(t));});
 voiceMicBtn.addEventListener("click",()=>{if(isListening){recognition.stop();isListening=false;}else startL();});
 document.getElementById("voice-close").addEventListener("click",()=>{if(recognition)recognition.stop();isListening=false;voiceModal.hidden=true;});
 
@@ -2220,4 +2321,5 @@ _prevLevelIdx=LEVELS.indexOf(getLevel(_prevCount));
 initBadges();
 initCompletedPrefs();
 updatePremiumUI();
+applyStoredLicense();
 render();

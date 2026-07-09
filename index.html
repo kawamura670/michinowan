@@ -35,7 +35,7 @@ if('serviceWorker' in navigator){
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
-<link rel="stylesheet" href="style.css?v=30">
+<link rel="stylesheet" href="style.css?v=32">
 
 <!-- Google Analytics (GA4) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-WRLCGMHKTS"></script>
@@ -325,6 +325,15 @@ if('serviceWorker' in navigator){
     </div>
     <button id="paywall-cta" class="paywall-cta">¥980 でみちのわんマスターになる</button>
     <div class="paywall-guarantee">🔒 安心の決済 ｜ 買い切りで追加料金なし</div>
+    <div class="license-area">
+      <button id="license-toggle" class="license-toggle">🔑 ライセンスコードをお持ちの方はこちら</button>
+      <div id="license-section" class="license-section" hidden>
+        <input id="license-input" class="license-input" type="text" placeholder="WAN-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24">
+        <button id="license-submit" class="license-submit">コードで解除する</button>
+        <div id="license-error" class="license-error" hidden></div>
+        <div class="license-note">購入時に届いたコードを入力すると、この端末で全機能が解放されます。機種変更時はバックアップから復元できます。</div>
+      </div>
+    </div>
     <button id="paywall-skip" class="paywall-skip">あとで</button>
   </div>
 </div>
@@ -421,12 +430,31 @@ if('serviceWorker' in navigator){
   <div class="modal voice-modal">
     <h2>🎤 音声でチェック</h2>
     <div id="voice-status" class="voice-status">マイクボタンを押して道の駅名を読み上げてください</div>
+    <input id="voice-fallback-input" class="voice-fallback-input" type="text" placeholder="駅名を話すか入力（例: かわば）" autocomplete="off" hidden>
     <div id="voice-recognized" class="voice-recognized"></div>
     <div id="voice-matches" class="voice-matches"></div>
     <div id="voice-done-msg" class="voice-done-msg" hidden></div>
     <div class="modal-actions">
       <button id="voice-mic" class="voice-mic-btn">🎤 聴き取り開始</button>
       <button id="voice-close" class="modal-cancel">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== バックアップ（コピー方式）モーダル ===== -->
+<div id="backup-modal" class="modal-overlay" hidden>
+  <div class="modal backup-modal">
+    <h2>💾 バックアップ</h2>
+    <p class="backup-note">この環境ではファイル保存が使えないため、コピー方式でバックアップします。<br>①下のボタンでコピー → ②「メモ」アプリなどに貼り付けて保存してください。</p>
+    <button id="backup-copy-btn" class="action-btn primary-btn">📋 バックアップ文をコピー</button>
+    <div id="backup-copy-done" class="backup-done-msg" hidden>✅ コピーしました！メモアプリに貼り付けて保存してください</div>
+    <hr class="backup-sep">
+    <h3 class="backup-restore-title">📂 復元（読み込み）</h3>
+    <p class="backup-note">保存しておいたバックアップ文を下に貼り付けてください。</p>
+    <textarea id="backup-paste-area" class="backup-paste-area" placeholder="ここにバックアップ文を貼り付け"></textarea>
+    <div class="modal-actions">
+      <button id="backup-paste-import-btn" class="action-btn secondary-btn">貼り付けた内容を読み込む</button>
+      <button id="backup-close" class="modal-cancel">閉じる</button>
     </div>
   </div>
 </div>
@@ -482,7 +510,7 @@ if('serviceWorker' in navigator){
         <h3>第1条（適用）</h3>
         <p>本規約は、本アプリの利用に関する条件を定めるものです。ユーザーは本アプリを利用することにより、本規約に同意したものとみなします。</p>
         <h3>第2条（サービス内容）</h3>
-        <p>本アプリは、全国の道の駅の訪問記録・スタンプ収集を支援するライフログアプリです。現在は無料版を提供しており、有料の「みちのわんマスター」（買い切り980円）はGoogle Play決済への対応後に提供予定です。</p>
+        <p>本アプリは、全国の道の駅の訪問記録・スタンプ収集を支援するライフログアプリです。現在は無料版を提供しており、有料の「みちのわんマスター」（買い切り980円）は、Web版では外部販売サイトで購入したライセンスコードの入力により提供します（販売開始準備中）。Android版はGoogle Play決済への対応後に提供予定です。</p>
         <h3>第3条（免責事項）</h3>
         <ul>
           <li>本アプリに掲載される道の駅情報、ドッグラン情報、RVパーク情報は参考情報であり、正確性・最新性を保証するものではありません。お出かけ前に必ず公式情報をご確認ください。</li>
@@ -515,15 +543,15 @@ if('serviceWorker' in navigator){
           <tr><th>所在地</th><td>請求があった場合に遅滞なく開示いたします。<br>お問い合わせ先メールアドレスまでご連絡ください。</td></tr>
           <tr><th>電話番号</th><td>請求があった場合に遅滞なく開示いたします。<br>お問い合わせ先メールアドレスまでご連絡ください。</td></tr>
           <tr><th>メールアドレス</th><td>ana06155@icloud.com</td></tr>
-          <tr><th>販売価格</th><td>みちのわんマスター: 980円（税込・買い切り）<br>※ 現在は無料版を提供中。有料機能は準備中です。</td></tr>
+          <tr><th>販売価格</th><td>みちのわんマスター: 980円（税込・買い切り）<br>※ 現在は無料版を提供中。有料機能の販売は準備中です。</td></tr>
           <tr><th>販売価格以外の必要料金</th><td>インターネット接続に必要な通信料はお客様のご負担となります。</td></tr>
-          <tr><th>支払方法</th><td>Google Play決済（有料機能の提供開始後）</td></tr>
+          <tr><th>支払方法</th><td>Web版: 外部販売サイト（BOOTH等）でのライセンスコード販売（各販売サイトの決済手段に従います）<br>Android版: Google Play決済（有料機能の提供開始後）</td></tr>
           <tr><th>支払時期</th><td>購入時に一括でお支払いいただきます。</td></tr>
-          <tr><th>サービス提供時期</th><td>有料機能の提供開始後、Google Playで購入が確認され次第ご利用いただけます。</td></tr>
-          <tr><th>返品・キャンセル</th><td>デジタルコンテンツの返品・返金はGoogle Playの規定に従います。サービスの提供に重大な不具合があった場合は個別に対応いたします。</td></tr>
+          <tr><th>サービス提供時期</th><td>Web版: 購入後にお届けするライセンスコードをアプリに入力した時点でご利用いただけます。<br>Android版: Google Playで購入が確認され次第ご利用いただけます。</td></tr>
+          <tr><th>返品・キャンセル</th><td>デジタルコンテンツの性質上、購入後の返品・返金は原則お受けできません。Google Play経由の購入はGoogle Playの規定に従います。サービスの提供に重大な不具合があった場合は個別に対応いたします。</td></tr>
           <tr><th>動作環境</th><td>Android版およびPWA対応ブラウザ（最新版のChrome、Safari、Edge、Firefoxを推奨）</td></tr>
         </table>
-        <p class="legal-updated">最終更新: 2026年6月24日</p>
+        <p class="legal-updated">最終更新: 2026年7月8日</p>
       </div>
     </div>
     <div id="legal-about" hidden>
@@ -603,6 +631,7 @@ if('serviceWorker' in navigator){
 <script src="map.js"></script>
 <script src="dogrun_stations.js"></script>
 <script src="emergency_vets.js"></script>
-<script src="app.js?v=35"></script>
+<script src="license_hashes.js?v=1"></script>
+<script src="app.js?v=38"></script>
 </body>
 </html>

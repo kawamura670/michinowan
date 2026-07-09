@@ -1,4 +1,4 @@
-const CACHE_NAME = 'michinowan-v13';
+const CACHE_NAME = 'michinowan-v16';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './map.js',
   './dogrun_stations.js',
   './emergency_vets.js',
+  './license_hashes.js',
   './privacy.html',
   './tokusho.html',
   './icon-192.png',

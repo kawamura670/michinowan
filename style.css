@@ -1179,6 +1179,23 @@ body {
 .voice-done-msg { background: var(--green-light); color: var(--green-dark); font-weight: 700; padding: 12px 14px; border-radius: var(--radius-sm); margin-bottom: 12px; font-size: 0.95rem; }
 .voice-mic-btn { background: var(--sky) !important; color: #fff !important; }
 .voice-mic-btn.recording { background: #d32f2f !important; animation: pulse 1.5s infinite; }
+.voice-fallback-input {
+  width: 100%; padding: 12px 14px; margin-bottom: 12px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 1rem; box-sizing: border-box;
+}
+
+/* ===== バックアップ（コピー方式）モーダル ===== */
+.backup-modal { text-align: center; }
+.backup-note { font-size: 0.88rem; color: var(--text-sub); margin-bottom: 12px; text-align: left; }
+.backup-done-msg { background: var(--green-light); color: var(--green-dark); font-weight: 700; padding: 12px 14px; border-radius: var(--radius-sm); margin-top: 10px; font-size: 0.9rem; }
+.backup-sep { border: none; border-top: 1.5px solid var(--border); margin: 18px 0 14px; }
+.backup-restore-title { font-size: 1.05rem; margin-bottom: 8px; }
+.backup-paste-area {
+  width: 100%; min-height: 90px; padding: 10px 12px; margin-bottom: 12px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 0.85rem; box-sizing: border-box; resize: vertical;
+}
 
 /* ===== マップタブ ===== */
 .map-container { padding: 16px; max-width: 600px; margin: 0 auto; }
@@ -1868,6 +1885,29 @@ body {
   color: var(--text-light); font-size: 0.78rem; cursor: pointer;
   border: none; background: none; width: 100%;
 }
+
+/* ===== ライセンスコード入力（Web直販） ===== */
+.license-area { padding: 8px 28px 0; text-align: center; }
+.license-toggle {
+  border: none; background: none; cursor: pointer;
+  color: var(--text-light); font-size: 0.78rem; font-weight: 600;
+  text-decoration: underline; padding: 10px; min-height: 44px;
+}
+.license-section { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 8px; }
+.license-input {
+  padding: 13px 12px; border: 1.5px solid #ccc; border-radius: 12px;
+  font-size: 1rem; text-align: center; letter-spacing: 0.08em;
+  text-transform: uppercase; width: 100%;
+}
+.license-input:focus { outline: none; border-color: var(--primary); }
+.license-submit {
+  padding: 14px; border: 1.5px solid var(--primary); border-radius: 12px;
+  background: #fff; color: var(--primary); font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; width: 100%;
+}
+.license-submit:disabled { opacity: 0.5; cursor: default; }
+.license-error { color: #C0392B; font-size: 0.82rem; font-weight: 600; }
+.license-note { color: var(--text-light); font-size: 0.72rem; line-height: 1.6; text-align: left; }
 
 /* ===== レベルアップ通知トースト ===== */
 .levelup-toast {
