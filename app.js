@@ -3,10 +3,9 @@ const REVENUE_CONFIG = {
   // Android版の有料機能はGoogle Play Billingで実装し、購入状態を安全に検証すること
   googlePlayProductId: "michinowan_master",
 
-  // Web版の購入ページURL（BOOTH）。商品ページ公開後は items/xxxx の個別URLを設定する。
-  // ショップURL https://michinowan.booth.pm/ （商品ページ未公開のため、公開までは空にして「準備中」案内を出す）
+  // Web版の購入ページURL（BOOTH商品ページ、2026-07-20設定）
   // Google Play版としてビルドする際は、Play課金以外への誘導が規約違反になるため必ず空文字に戻すこと
-  webPurchaseUrl: "",
+  webPurchaseUrl: "https://michinowan.booth.pm/items/8632094",
 
   // 楽天アフィリエイトID — https://affiliate.rakuten.co.jp/ で取得
   rakutenAffiliateId: "", // 例: "1234abcd.5678efgh.9012ijkl"
