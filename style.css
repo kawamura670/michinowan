@@ -1824,13 +1824,18 @@ body {
 .paywall-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.5); display: flex;
-  align-items: center; justify-content: center;
+  justify-content: center;
+  /* 画面より縦長になってもスクロールで全体に届くようにする(iPhone購入導線バグ対策) */
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 24px 12px;
   z-index: 300; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
 .paywall-overlay[hidden] { display: none; }
 .paywall {
   background: #fff; border-radius: 28px; padding: 0;
   max-width: 380px; width: 92%; overflow: hidden;
+  margin: auto; /* 画面に収まる時は中央、収まらない時は上から表示してスクロール */
+  flex-shrink: 0;
   box-shadow: 0 24px 80px rgba(0,0,0,0.2);
   animation: payIn 0.45s cubic-bezier(0.17,0.89,0.32,1.28);
 }
