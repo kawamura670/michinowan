@@ -340,7 +340,7 @@ const RARITY_STYLE = {
 };
 
 function getStampImageUrl(stationId) {
-  return `stamp_images/stamp_${stationId}.png`;
+  return `stamp_images/stamp_${stationId}.webp`;
 }
 
 function buildStampImage(station) {
